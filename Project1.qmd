@@ -1,0 +1,192 @@
+---
+title: "Project 1"
+author: "James Poslusny"
+format: html
+editor: visual
+---
+
+## Project 1
+
+**Acknowledgements:**
+
+I know this section usually comes at the end, but I would be remiss not to express my sincerest gratitude to Dr. Post and TA Gabby Taylor for their flexibility and support whilst I was sick and hospitalized. I am sincerely grateful for the opportunity to catch back up. Thank you. \
+
+**Plan of Attack**
+
+Firstly, we'll create the function for steps 1 and 2. Then the function for step 3. Then the 5&6 function. Then the final, step 4 function. Then we'll put it in the wrapper and take care of the plotting functions later.
+
+**Function for steps 1 and 2**
+
+```{r}
+library(dplyr)
+library(tidyr)
+data_init<- function(link, enrollment = "enrollment"){
+  dat<- read.csv(url(link))
+  dat<- dat %>% select(Area_name,STCOU,ends_with("D")) %>% 
+    rename(area_name = Area_name) %>%
+    pivot_longer(
+      cols = -c(area_name, STCOU),
+      names_to = "area_name",
+      values_to = enrollment
+    )
+  return(dat)
+}
+```
+
+**Function for step 3**
+
+```{r}
+data_infograb<- function(dat, enrollment = "enrollment"){
+  dat$year<- substr(dat$enrollment,nchar(dat$enrollment)-2,nchar(dat$enrollment))
+  dat$meaurement<- substr(dat$enrollment,1,7)
+  return(dat)
+}
+```
+
+**Function for step 5**
+
+```{r}
+data_ifcounty_whatstate<- function(dat){
+  dat$state<- substr(dat$area_name, nchar(dat$area_name)-2, nchar(dat$area_name))
+  return(dat)
+}
+```
+
+**Function for step 6**
+
+```{r}
+data_ifnotcounty_whatdiv<-function(dat){
+  dat$state<- substr(dat$area_name, nchar(dat$area_name)-2, nchar(dat$area_name))
+  if(dat$state %in% c("CT","ME","MA","NH","RI","VT")){
+    dat$division<- "Division 1"
+  } else if (dat$state %in% c("NJ","NY","PA")){
+    dat$division<- "Division 2"
+  } else if (dat$state %in% c("IL","IN","MI","OH","WI")){
+    dat$division<- "Division 3"
+  } else if (dat$state %in% c("IA","KS","MN","MO","NE","ND","SD")){
+    dat$division<- "Division 4"
+  } else if (dat$state %in% c("DE","FL","GA","MD","NC","SC","VA","DC","WV")){
+    dat$division<- "Division 5"
+  } else if (dat$state %in% c("AL","KY","TN","MS")){
+    dat$division<- "Division 6"
+  } else if (dat$state %in% c("AK","LA","OK","TX")){
+    dat$division<- "Division 7"
+  } else if (dat$state %in% c("AZ","CO","ID","MT","NV","NM","UT","WY")){
+    dat$division<- "Division 8"
+  } else if (dat$state %in% c("AL","CA","HI","OR","WA")){
+    dat$division<- "Division 9"
+  } else {
+    dat$division<- "ERROR"
+  }
+  return(dat)
+}
+```
+
+**Function for step 4 (takes output for step 3 and calls 5 and 6, returns two tibbles)**
+
+```{r}
+data_4toend<- function(dat){
+  county_dat<- dat %>% filter(STCOU == "County")
+  noncounty_dat<- dat %>% filter(STCOU != "County")
+  class(county_dat)<- c("county",class(county_dat))
+  class(noncounty_dat)<- c("state",class(noncounty_dat))
+  county_return<- data_ifcounty_whatstate(county_dat)
+  noncounty_return<-data_ifnotcounty_whatdiv(noncounty_dat)
+  listreturn<- list(county_return,noncounty_return)
+  return(listreturn)
+}
+```
+
+**Creating the wrapper function**
+
+```{r}
+data_setup<- function(link, enrollment = "enrollment"){
+  result<- data_4toend(data_infograb(data_init(link, enrollment),enrollment))
+  #I nested it because my brain understands this better than trying to pipe it
+}
+```
+
+**Calling it for the first two URLs**
+
+```{r}
+OneA<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/EDU01a.csv")
+OneB<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/EDU01b.csv")
+```
+
+**Creating the combiner function**
+
+```{r}
+combine<- function(lista, listb){
+  countycombo<- rbind(lista[[1]],listb[[1]])
+  noncountycombo<- rbind(lista[[2]],lisb[[2]])
+  combolist<- list(countycombo, noncountycombo)
+  return(combolist)
+}
+```
+
+**Calling the combiner function**
+
+```{r}
+first_two_combined<- combine(OneA,OneB)
+```
+
+**Creating the plot.state function**
+
+```{r}
+library(ggplot2)
+plot.state<- function(dat, enrollment = "enrollment"){
+  dat<- dat %>% filter(division != "ERROR") %>% group_by(year, division) %>%
+    summarise(value = mean(get(enrollment)))
+  ggplot(dat, aes(x = year,y = value, color = division)) + geom_point()
+}
+```
+
+**Creating the plot.county function**
+
+```{r}
+plot.county<- function(dat, enrollment = "enrollment", state = "NC", performance = "top", how_many = 5){
+  dat<- get(dat) %>% filter(division != "ERROR") %>% 
+    filter(state == get(state))  %>%
+    group_by(area_name) %>%
+    summarise(value = mean(get(enrollment)))
+  if (get(performance) == "top"){
+    order(dat, decreasing = T)
+  } else if (get(performance == "bottom")){
+    order(dat, descending = F)
+  } else {
+    return("ERROR: PERFORMANCE CAN ONLY BE top OR bottom")
+  }
+  
+  datforplot<- head(dat, get(how_many))
+  ggplot(dataforplot, aes(x = area_name, y = value)) + geom_bar()
+    
+}
+```
+
+**Put it Together**
+
+```{r}
+OneA<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/EDU01a.csv")
+OneB<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/EDU01b.csv")
+first_two_combined<- combine(OneA,OneB)
+plot.state(first_two_combined[[2]])
+plot.county(first_two_combined[[1]],state = "NC", performance = "top", how_many = 20)
+plot.county(first_two_combined[[1]],state = "SC", performance = "bottom", how_many = 7)
+plot.county(first_two_combined[[1]])
+plot.county(first_two_combined[[1]],state = "PA", performance = "top", how_many = 8)
+
+#NEW URLS
+A<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/PST01a.csv")
+B<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/PST01b.csv")
+C<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/PST01c.csv")
+D<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/PST01d.csv")
+
+AB<- combine(A,B)
+CD<- combine(C,D)
+ABCD<- combine(AB,CD)
+plot.state(ABCD)
+plot.county(ABCD, state = "CA", performance = "top", how_many = 15)
+plot.county(ABCD, state = "TX", performance = "top", how_many = 4)
+plot.county(ABCD)
+plot.county(ABCD, state = "NY", performance = "top", how_many = 10)
+```
