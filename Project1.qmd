@@ -9,7 +9,7 @@ editor: visual
 
 **Acknowledgements:**
 
-I know this section usually comes at the end, but I would be remiss not to express my sincerest gratitude to Dr. Post and TA Gabby Taylor for their flexibility and support whilst I was sick and hospitalized. I am sincerely grateful for the opportunity to catch back up. Thank you. \
+I know this section usually comes at the end, but I would be remiss not to express my sincerest gratitude to Dr. Post and TA Gabby Taylor for their flexibility and support whilst I was sick and hospitalized. I am sincerely grateful for the opportunity to catch back up. Thank you.\
 
 **Plan of Attack**
 
@@ -26,7 +26,7 @@ data_init<- function(link, enrollment = "enrollment"){
     rename(area_name = Area_name) %>%
     pivot_longer(
       cols = -c(area_name, STCOU),
-      names_to = "area_name",
+      #names_to = "area_name",
       values_to = enrollment
     )
   return(dat)
@@ -37,7 +37,7 @@ data_init<- function(link, enrollment = "enrollment"){
 
 ```{r}
 data_infograb<- function(dat, enrollment = "enrollment"){
-  dat$year<- substr(dat$enrollment,nchar(dat$enrollment)-2,nchar(dat$enrollment))
+  dat$year<- substr(dat$enrollment,nchar(dat$enrollment)-1,nchar(dat$enrollment))
   dat$meaurement<- substr(dat$enrollment,1,7)
   return(dat)
 }
@@ -47,7 +47,7 @@ data_infograb<- function(dat, enrollment = "enrollment"){
 
 ```{r}
 data_ifcounty_whatstate<- function(dat){
-  dat$state<- substr(dat$area_name, nchar(dat$area_name)-2, nchar(dat$area_name))
+  dat$state<- substr(dat$enrollment,nchar(dat$enrollment)-1,nchar(dat$enrollment))
   return(dat)
 }
 ```
@@ -56,28 +56,26 @@ data_ifcounty_whatstate<- function(dat){
 
 ```{r}
 data_ifnotcounty_whatdiv<-function(dat){
-  dat$state<- substr(dat$area_name, nchar(dat$area_name)-2, nchar(dat$area_name))
-  if(dat$state %in% c("CT","ME","MA","NH","RI","VT")){
-    dat$division<- "Division 1"
-  } else if (dat$state %in% c("NJ","NY","PA")){
-    dat$division<- "Division 2"
-  } else if (dat$state %in% c("IL","IN","MI","OH","WI")){
-    dat$division<- "Division 3"
-  } else if (dat$state %in% c("IA","KS","MN","MO","NE","ND","SD")){
-    dat$division<- "Division 4"
-  } else if (dat$state %in% c("DE","FL","GA","MD","NC","SC","VA","DC","WV")){
-    dat$division<- "Division 5"
-  } else if (dat$state %in% c("AL","KY","TN","MS")){
-    dat$division<- "Division 6"
-  } else if (dat$state %in% c("AK","LA","OK","TX")){
-    dat$division<- "Division 7"
-  } else if (dat$state %in% c("AZ","CO","ID","MT","NV","NM","UT","WY")){
-    dat$division<- "Division 8"
-  } else if (dat$state %in% c("AL","CA","HI","OR","WA")){
-    dat$division<- "Division 9"
-  } else {
-    dat$division<- "ERROR"
-  }
+  dat$state<- substr(dat$area_name, 1,2)
+  ifelse(dat$state %in% c("CT","ME","MA","NH","RI","VT"), 
+         dat$division<- "Division 1",
+         ifelse(dat$state %in% c("NJ","NY","PA"),
+                dat$division<- "Division 2",
+                ifelse(c("IL","IN","MI","OH","WI"),
+                       dat$division<- "Division 3",
+                       ifelse(dat$state %in% c("IA","KS","MN","MO","NE","ND","SD"),
+                              dat$division<- "Division 4",
+                              ifelse(dat$state %in% c("DE","FL","GA","MD","NC","SC","VA","DC","WV"),
+                                     dat$division<- "Division 5",
+                                     ifelse(dat$state %in% c("AL","KY","TN","MS"),
+                                            dat$division<- "Division 6",
+                                            ifelse(dat$state %in% c("AK","LA","OK","TX"),
+                                                   dat$division<- "Division 7",
+                                                   ifelse(dat$state %in% c("AZ","CO","ID","MT","NV","NM","UT","WY"),
+                                                          dat$division<- "Division 8",
+                                                          ifelse(dat$state %in% c("AL","CA","HI","OR","WA"),
+                                                                 dat$division<- "Division 9", "ERROR")))))))))
+
   return(dat)
 }
 ```
@@ -86,8 +84,8 @@ data_ifnotcounty_whatdiv<-function(dat){
 
 ```{r}
 data_4toend<- function(dat){
-  county_dat<- dat %>% filter(STCOU == "County")
-  noncounty_dat<- dat %>% filter(STCOU != "County")
+  county_dat<- dat %>% filter(STCOU %% 10 != 0)
+  noncounty_dat<- dat %>% filter(STCOU %% 10 == 0)
   class(county_dat)<- c("county",class(county_dat))
   class(noncounty_dat)<- c("state",class(noncounty_dat))
   county_return<- data_ifcounty_whatstate(county_dat)
@@ -118,7 +116,7 @@ OneB<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/EDU01b.csv")
 ```{r}
 combine<- function(lista, listb){
   countycombo<- rbind(lista[[1]],listb[[1]])
-  noncountycombo<- rbind(lista[[2]],lisb[[2]])
+  noncountycombo<- rbind(lista[[2]],listb[[2]])
   combolist<- list(countycombo, noncountycombo)
   return(combolist)
 }
@@ -136,7 +134,7 @@ first_two_combined<- combine(OneA,OneB)
 library(ggplot2)
 plot.state<- function(dat, enrollment = "enrollment"){
   dat<- dat %>% filter(division != "ERROR") %>% group_by(year, division) %>%
-    summarise(value = mean(get(enrollment)))
+    summarise(value = mean(enrollment))
   ggplot(dat, aes(x = year,y = value, color = division)) + geom_point()
 }
 ```
@@ -145,20 +143,20 @@ plot.state<- function(dat, enrollment = "enrollment"){
 
 ```{r}
 plot.county<- function(dat, enrollment = "enrollment", state = "NC", performance = "top", how_many = 5){
-  dat<- get(dat) %>% filter(division != "ERROR") %>% 
-    filter(state == get(state))  %>%
+  dat<- dat %>% 
+    filter(state == state)  %>%
     group_by(area_name) %>%
-    summarise(value = mean(get(enrollment)))
-  if (get(performance) == "top"){
-    order(dat, decreasing = T)
-  } else if (get(performance == "bottom")){
-    order(dat, descending = F)
+    summarise(value = mean(enrollment))
+  if (performance == "top"){
+    arrange(dat, desc(enrollment))
+  } else if (performance == "bottom"){
+    arrange(dat, enrollment)
   } else {
     return("ERROR: PERFORMANCE CAN ONLY BE top OR bottom")
   }
   
-  datforplot<- head(dat, get(how_many))
-  ggplot(dataforplot, aes(x = area_name, y = value)) + geom_bar()
+  datforplot<- head(dat, how_many)
+  ggplot(datforplot, aes(x = area_name, y = value)) + geom_point()
     
 }
 ```
@@ -184,9 +182,9 @@ D<- data_setup("https://www4.stat.ncsu.edu/~online/datasets/PST01d.csv")
 AB<- combine(A,B)
 CD<- combine(C,D)
 ABCD<- combine(AB,CD)
-plot.state(ABCD)
-plot.county(ABCD, state = "CA", performance = "top", how_many = 15)
-plot.county(ABCD, state = "TX", performance = "top", how_many = 4)
-plot.county(ABCD)
-plot.county(ABCD, state = "NY", performance = "top", how_many = 10)
+plot.state(ABCD[[2]])
+plot.county(ABCD[[1]], state = "CA", performance = "top", how_many = 15)
+plot.county(ABCD[[1]], state = "TX", performance = "top", how_many = 4)
+plot.county(ABCD[[1]])
+plot.county(ABCD[[1]], state = "NY", performance = "top", how_many = 10)
 ```
